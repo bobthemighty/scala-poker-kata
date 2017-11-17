@@ -46,6 +46,7 @@ sealed abstract class Hand (
 
     case (HighestCard(a), HighestCard(b)) => a compare b
     case (Pair(a), Pair(b)) => a compare b
+    case (TwoPairs(_, a), TwoPairs(_, b)) => a compare b
     case (ThreeOfAKind(a), ThreeOfAKind(b)) => a compare b
     case (FourOfAKind(a), FourOfAKind(b)) => a compare b
     case (Straight(a), Straight(b)) => a compare b
@@ -69,23 +70,27 @@ case class ThreeOfAKind(rank: Rank) extends Hand(2) {
   def description() = "Three of a kind: " + rank.name
 }
 
-case class Straight(rank: Rank) extends Hand(3) {
+case class TwoPairs(low: Rank, high: Rank) extends Hand(3) {
+  def description() = "Pair of " + low.name + "s and pair of " + high.name +"s"
+}
+
+case class Straight(rank: Rank) extends Hand(4) {
   def description() = "Straight: " + rank.name + " high"
 }
 
-case class Flush(card: Card) extends Hand(4) {
+case class Flush(card: Card) extends Hand(5) {
   def description() = "Flush of " + card.suit.name + ", "+ card.rank.name +" high"
 }
 
-case class FullHouse(pair: Rank, triplet: Rank) extends Hand(5) {
+case class FullHouse(pair: Rank, triplet: Rank) extends Hand(6) {
   def description() = "Full house: " + triplet.name + " over "+ pair.name
 }
 
-case class FourOfAKind(rank: Rank) extends Hand(6) {
+case class FourOfAKind(rank: Rank) extends Hand(7) {
   def description() = "Four of a kind: " + rank.name
 }
 
-case class StraightFlush(rank: Rank) extends Hand(7) {
+case class StraightFlush(rank: Rank) extends Hand(8) {
   def description() = "Straight flush: " + rank.name + " high"
 }
 
@@ -106,6 +111,10 @@ object Hands {
   def countByRank(cards: List[Card]) = {
     val byRank = cards.groupBy(_.rank)
     byRank map { case (rank, vals) => (rank, vals.length) }
+  }
+
+  def highlow (a: Rank, b: Rank) = {
+    if (a > b) { (a, b) } else { (b, a) }
   }
 
 
@@ -136,13 +145,31 @@ object Hands {
     if (isStraight(cards)) Some(Straight(cards.max.rank)) else None
   }
 
-  def selectGroup(cards: List[Card]): Option[Hand] = {
+  def selectTwoPairs (cards: List[Card], first: Rank) : Option[Hand] = {
+    findGroup(cards.filterNot { c => c.rank == first }) match {
+      case Some(Pair(second)) => {
+        val (high, low) = highlow(first, second)
+        Some(TwoPairs(low, high))
+      } 
+      case _ => Some(Pair(first))
+    }
+  }
+
+  def findGroup(cards: List[Card]): Option[Hand] = {
     val groups = countByRank(cards)
-    groups maxBy { case (rank, size) => size } match {
+    val metaGroups = groups.groupBy { case (rank, size) => size }
+    groups maxBy(_._2) match {
       case (r: Rank, 2) => Some(Pair(r))
       case (r: Rank, 3) => Some(ThreeOfAKind(r))
       case (r: Rank, 4) => Some(FourOfAKind(r))
       case _ => None
+    }
+  }
+
+  def selectGroup (cards: List[Card]) : Option[Hand] = {
+    findGroup(cards) match {
+      case Some(Pair(rank)) => selectTwoPairs(cards, rank)
+      case hand => hand
     }
   }
 

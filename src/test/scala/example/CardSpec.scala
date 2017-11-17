@@ -80,6 +80,30 @@ class PairSpec extends FlatSpec with Matchers {
   }
 }
 
+class TwoPairsSpec extends FlatSpec with Matchers {
+  behavior of "Two pairs"
+
+  it should "beat a pair" in {
+    val pair: Hand = Pair(Ace)
+    val twopairs : Hand = TwoPairs(Deuce, Three)
+
+    twopairs should be > pair
+  }
+
+  it should "have the correct description" in {
+    val pair = TwoPairs(Three, Ten)
+    pair.description should equal ("Pair of Threes and pair of Tens")
+  }
+
+  it should "be ordered by rank" in {
+    val king : Hand = TwoPairs(Deuce, King)
+    val queen : Hand = TwoPairs(Three, Queen)
+
+    king should be > queen
+  }
+}
+
+
 
 class ThreeOfAKindSpec extends FlatSpec with Matchers {
   behavior of "Three of a kind"
@@ -253,6 +277,21 @@ class HandFactorySpec extends FlatSpec with Matchers {
     pair.rank should equal(Four)
   }
 
+  it should "return two pairs of matching cards by rank" in {
+    val cards = List(
+      Card(Four, Hearts),
+      Card(King, Diamonds),
+      Card(King, Diamonds),
+      Card(Four, Clubs))
+
+    val hand = Hands.select(cards)
+
+    hand shouldBe a [TwoPairs]
+
+    val pair = hand.asInstanceOf[TwoPairs]
+    pair.high should equal(King)
+    pair.low should equal(Four)
+  }
 
   it should "return three of a kind by rank" in {
     val cards = List(
