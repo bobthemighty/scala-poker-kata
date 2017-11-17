@@ -157,7 +157,6 @@ object Hands {
 
   def findGroup(cards: List[Card]): Option[Hand] = {
     val groups = countByRank(cards)
-    val metaGroups = groups.groupBy { case (rank, size) => size }
     groups maxBy(_._2) match {
       case (r: Rank, 2) => Some(Pair(r))
       case (r: Rank, 3) => Some(ThreeOfAKind(r))
