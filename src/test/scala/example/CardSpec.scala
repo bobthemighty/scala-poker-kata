@@ -2,135 +2,6 @@ package scalapoker
 
 import org.scalatest._
 import scala.collection.immutable.TreeSet
-import scala.annotation.tailrec
-
-sealed abstract class Suit(val name: String)
-case object Hearts extends Suit("hearts")
-case object Clubs extends Suit("clubs")
-case object Spades extends Suit("spades")
-case object Diamonds extends Suit("diamonds")
-
-
-sealed abstract class Rank (
-  val name: String,
-  val value: Int,
-  val code: Char) extends Ordered[Rank] {
-    def compare(that: Rank) = this.value - that.value
-  }
-
-case object Deuce extends Rank("Deuce", 2, '2')
-case object Three extends Rank("Three", 3, '3')
-case object Four extends Rank("Four", 4, '4')
-case object Five extends Rank("Five", 5, '5')
-case object Six extends Rank("Six", 6, '6')
-case object Seven extends Rank("Seven", 7, '7')
-case object Eight extends Rank("Eight", 8, '8')
-case object Nine extends Rank("Nine", 9, '9')
-case object Ten extends Rank("Ten", 10, 'T')
-case object Jack extends Rank("Jack", 11, 'J')
-case object Queen extends Rank("Queen", 12, 'Q')
-case object King extends Rank("King", 13, 'K')
-case object Ace extends Rank("Ace", 14, 'A')
-
-case class Card (
-  val rank : Rank,
-  val suit: Suit) extends Ordered[Card] {
-
-  def compare(that: Card) = this.rank.compare(that.rank)
-  def description() = this.rank.name + " of " + this.suit.name
-}
-
-sealed abstract class Hand (
-  val order: Int ) extends Ordered[Hand] {
-
-  def description () : String
-
-  def compare(that: Hand) : Int = (this, that) match {
-
-    case (HighestCard(a), HighestCard(b)) => a compare b
-    case (Pair(a), Pair(b)) => a compare b
-    case (ThreeOfAKind(a), ThreeOfAKind(b)) => a compare b
-    case (FourOfAKind(a), FourOfAKind(b)) => a compare b
-    case _ => return this.order - that.order
-
-  }
-}
-
-object Hands {
-
-
-  type decider = List[Card] => Option[Hand]
-
-  def selectStraight(cards: List[Card]) : Option[Hand] = {
-    @tailrec
-    def testStraight(cards: List[Card]) : Boolean = cards match {
-      case Nil => false
-      case x::Nil => true
-      case x::y::zs => if (y.rank.value - x.rank.value == 1) {
-                          testStraight (y::zs) 
-                       } else {
-                         false
-                       }
-    }
-
-    if (testStraight(cards)) {
-      val card = cards.max
-      Some(Straight(card.rank))
-    } else {
-      None
-    }
-
-  }
-
-  def selectGroup(cards: List[Card]) : Option[Hand] = {
-      val byRank = cards.groupBy(_.rank)
-      val groups = byRank map { case (rank, vals) => (rank, vals.length) }
-      groups maxBy { case (rank, size) => size } match {
-        case (r: Rank, 2) => Some(Pair(r))
-        case (r: Rank, 3) => Some(ThreeOfAKind(r))
-        case (r: Rank, 4) => Some(FourOfAKind(r))
-        case _ => None
-    }
-  }
-
-  @tailrec
-  def firstmatch(funcs: List[decider], cards: List[Card]) : Option[Hand] = funcs match {
-    case Nil => None
-    case f :: rest => (f(cards)) match {
-      case None => firstmatch(rest, cards)
-      case h => h
-    }
-  }
-
-  def select(cards: List[Card]) : Hand =  {
-    val deciders = List(selectStraight _, selectGroup _)
-    firstmatch(deciders, cards) match {
-      case Some(hand) => hand
-      case None => HighestCard(cards.max)
-    }
-  }
-}
-
-
-case class HighestCard(card: Card) extends Hand (0) {
-  def description() = "High card: " + card.description()
-}
-
-case class Pair(rank: Rank) extends Hand(1) {
-  def description() = "Pair of " + rank.name + "s"
-}
-
-case class ThreeOfAKind(rank: Rank) extends Hand(2) {
-  def description() = "Three of a kind: " + rank.name
-}
-
-case class FourOfAKind(rank: Rank) extends Hand(3) {
-  def description() = "Four of a kind: " + rank.name
-}
-
-case class Straight(rank: Rank) extends Hand(4) {
-  def description() = "Straight: " + rank.name + " high"
-}
 
 class CardSpec extends FlatSpec with Matchers {
 
@@ -237,11 +108,11 @@ class ThreeOfAKindSpec extends FlatSpec with Matchers {
 class FourOfAKindSpec extends FlatSpec with Matchers {
   behavior of "Four of a kind"
 
-  it should "beat three of a kind" in {
-    val threeOfAKind : Hand = ThreeOfAKind(Deuce)
+  it should "beat a full house" in {
+    val fullhouse : Hand = FullHouse(Deuce, Three)
     val fourOfAKind : Hand = FourOfAKind(Deuce)
 
-    fourOfAKind should be > threeOfAKind
+    fourOfAKind should be > fullhouse
   }
 
   it should "have the correct description" in {
@@ -254,6 +125,99 @@ class FourOfAKindSpec extends FlatSpec with Matchers {
     val ace : Hand = FourOfAKind(Ace)
 
     ace should be > four
+  }
+}
+
+
+class StraightSpec extends FlatSpec with Matchers {
+  behavior of "Straight"
+
+  it should "beat three of a kind" in {
+    val threeOfAKind : Hand = ThreeOfAKind(King)
+    val straight : Hand = Straight(Seven)
+
+    straight should be > threeOfAKind
+  }
+
+  it should "have the correct description" in {
+    val straight : Hand = Straight(Seven)
+    straight.description should equal ("Straight: Seven high")
+  }
+
+  it should "order by rank" in {
+    val seven : Hand = Straight(Seven)
+    val eight : Hand = Straight(Eight)
+
+    seven should be < eight
+  }
+}
+
+class FlushSpec extends FlatSpec with Matchers {
+  behavior of "Flush"
+
+  it should "beat a straight" in {
+    val straight : Hand = Straight(Seven)
+    val flush : Hand = Flush(Card(Deuce, Clubs))
+
+    flush should be > straight
+  }
+
+  it should "have the correct description" in {
+    val flush : Hand = Flush(Card(Seven, Diamonds))
+    flush.description should equal ("Flush of diamonds, Seven high")
+  }
+
+  it should "order by rank" in {
+    val seven : Hand = Flush(Card(Seven, Clubs))
+    val eight : Hand = Flush(Card(Eight, Clubs))
+
+    seven should be < eight
+  }
+}
+
+class FullHouseSpec extends FlatSpec with Matchers {
+  behavior of "Full House"
+
+  it should "beat a flush" in {
+    val flush : Hand = Flush(Card(Deuce, Clubs))
+    val fullhouse : Hand = FullHouse(Deuce, Seven)
+
+    fullhouse should be > flush
+  }
+
+  it should "have the correct description" in {
+    val fullhouse : Hand = FullHouse(Ace, King)
+    fullhouse.description should equal ("Full house: King over Ace")
+  }
+
+  it should "order by the rank of the triplet" in {
+    val seven : Hand = FullHouse(Deuce, Seven)
+    val eight : Hand = FullHouse(Ace, Eight)
+
+    seven should be < eight
+  }
+}
+
+class StraightFlushSpec extends FlatSpec with Matchers {
+  behavior of "A straight flush"
+
+  it should "beat four of a kind" in {
+    val fourofakind : Hand = FourOfAKind(Ace)
+    val straightflush : Hand = StraightFlush(Deuce)
+
+    straightflush should be > fourofakind
+  }
+
+  it should "have the correct description" in {
+    val fullhouse : Hand = StraightFlush(Deuce)
+    fullhouse.description should equal ("Straight flush: Deuce high")
+  }
+
+  it should "order by rank" in {
+    val seven : Hand = StraightFlush(Seven)
+    val eight : Hand = StraightFlush(Eight)
+
+    seven should be < eight
   }
 }
 
@@ -330,6 +294,55 @@ class HandFactorySpec extends FlatSpec with Matchers {
 
     val hand = Hands.select(cards)
     hand shouldBe a [Straight]
+
+    val straight = hand.asInstanceOf[Straight]
+    straight.rank should equal(Six)
   }
 
+  it should "return a flush when all cards have the same suit" in {
+    val cards = List(
+      Card(Deuce, Hearts),
+      Card(Ten, Hearts),
+      Card(Four, Hearts),
+      Card(Nine, Hearts),
+      Card(Queen, Hearts))
+
+    val hand = Hands.select(cards)
+    hand shouldBe a [Flush]
+
+    val flush = hand.asInstanceOf[Flush]
+    flush.card should equal(Card(Queen, Hearts))
+  }
+
+  it should "select a full house when given a pair and three of a kind" in {
+    val cards = List(
+      Card(Deuce, Hearts),
+      Card(Deuce, Clubs),
+      Card(Four, Hearts),
+      Card(Four, Diamonds),
+      Card(Four, Spades))
+
+    val hand = Hands.select(cards)
+    hand shouldBe a [FullHouse]
+
+    val fullhouse = hand.asInstanceOf[FullHouse]
+    fullhouse.triplet should equal(Four)
+    fullhouse.pair should equal(Deuce)
+  }
+
+  it should "return a straight flush for consecutive cards of the same suit" in {
+    val cards = List(
+      Card(Deuce, Hearts),
+      Card(Three, Hearts),
+      Card(Four, Hearts),
+      Card(Five, Hearts),
+      Card(Six, Hearts)
+    )
+
+    val hand = Hands.select(cards)
+    hand shouldBe a [StraightFlush]
+
+    val straight = hand.asInstanceOf[StraightFlush]
+    straight.rank should equal (Six)
+  }
 }
